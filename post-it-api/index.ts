@@ -1,4 +1,4 @@
-import { serve } from "../deps.js";
+import { serve, v4, readAll } from "../deps.js";
 
 interface PostIt {
     title: string,
@@ -7,7 +7,7 @@ interface PostIt {
     createdAt: Date
 }
 
-let postIts: Record<PostIt["id"], PostIt> = {
+const postIts: Record<PostIt["id"], PostIt> = {
     "321d4asd-b3432-412323":{
         title: "Read more stuff",
         body:"foobar baz",
@@ -32,19 +32,28 @@ for await (const req of server) {
     headers.set("content-type","application/json");
     const url = new URL(`${PROTOCOL}://${HOST}${req.url}`);
     const pathWithMethod = `${req.method} ${url.pathname}`;
-    let status = 200;
     switch (pathWithMethod) {
         case "POST /api/post-its":
-            const body = await Deno.readAll(req.body);
+            const body = await readAll(req.body);
             const decoder = new TextDecoder();
-            console.log(decoder.decode(body));
-            req.respond({status:201});
+            const id = v4.generate();
+            const decoded = JSON.parse(decoder.decode(body));
+            postIts[id] = {
+                ...decoded,
+                id,
+                createdAt: new Date()
+            }
+            req.respond({
+                headers,
+                body: JSON.stringify(postIts[id]),
+                status:201
+            });
             continue;
         case "GET /api/post-its":
             const allPostIts = Object.keys(postIts).reduce((allPostIts: PostIt[], postItId)=>{
                 return allPostIts.concat(postIts[postItId]);
             }, []);
-            req.respond({headers, body: JSON.stringify({postIts: allPostIts},null,2)+"\n", status})
+            req.respond({headers, body: JSON.stringify({postIts: allPostIts},null,2)+"\n", status:200})
             continue;
         default:
             req.respond({body: `Uh oh, ${url} doesn't seem to exist!\n`, status: 404})
