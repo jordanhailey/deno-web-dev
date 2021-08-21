@@ -1,4 +1,4 @@
-import { serve, v4, readAll } from "../deps.js";
+import { serve, v4, readAll, resolve, fromFileUrl } from "./deps.js";
 
 interface PostIt {
     title: string,
@@ -33,7 +33,16 @@ for await (const req of server) {
     const url = new URL(`${PROTOCOL}://${HOST}${req.url}`);
     const pathWithMethod = `${req.method} ${url.pathname}`;
     switch (pathWithMethod) {
-        case "POST /api/post-its":
+        case "GET /":   {
+            const file = await Deno.readFile(
+                resolve(fromFileUrl(import.meta.url),"..", "index.html")
+            );
+            const htmlHeaders = new Headers();
+            htmlHeaders.set("content-type", "text/html");
+            req.respond({body: new TextDecoder().decode(file), headers: htmlHeaders})
+            continue;
+        }
+        case "POST /api/post-its":  {  
             const body = await readAll(req.body);
             const decoder = new TextDecoder();
             const id = v4.generate();
@@ -48,16 +57,18 @@ for await (const req of server) {
                 body: JSON.stringify(postIts[id]),
                 status:201
             });
-            continue;
-        case "GET /api/post-its":
+            continue; 
+        }        
+        case "GET /api/post-its":   {
             const allPostIts = Object.keys(postIts).reduce((allPostIts: PostIt[], postItId)=>{
                 return allPostIts.concat(postIts[postItId]);
             }, []);
-            req.respond({headers, body: JSON.stringify({postIts: allPostIts},null,2)+"\n", status:200})
+            req.respond({headers, body: JSON.stringify({postIts: allPostIts},null,2)+"\n", status:200});
             continue;
-        default:
-            req.respond({body: `Uh oh, ${url} doesn't seem to exist!\n`, status: 404})
+        }
+        default:    {
+            req.respond({body: `Uh oh, ${url} doesn't seem to exist!\n`, status: 404});
             break;
+        }
     }
-    
 }
